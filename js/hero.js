@@ -160,15 +160,7 @@
       this.stepperEl = document.getElementById('heroStepper');
       this.metaStatusEl = document.getElementById('heroMetaStatus');
       this.metricsGridEl = document.getElementById('heroMetricsGrid');
-      this.quickAppsListEl = document.getElementById('heroQuickAppsList');
-
-      // Playback Controls Elements
-      this.btnPrev = document.getElementById('btnPrevStep');
-      this.btnNext = document.getElementById('btnNextStep');
-      this.btnTogglePlayback = document.getElementById('btnTogglePlayback');
-      this.playbackIcon = document.getElementById('playbackIcon');
-      this.playbackLabel = document.getElementById('playbackLabel');
-      this.playbackTimerFill = document.getElementById('playbackTimerFill');
+      this.servicesListEl = document.getElementById('heroServicesList');
 
       this.storyline = config.storyline || [];
       this.digitalServices = config.digitalServices || [];
@@ -188,11 +180,11 @@
       this.lastDrawnFrame = -1;
       this.gavelSound = new GavelSoundSynthesizer();
 
-      // Auto-advance Timer State
-      this.isPlaying = true;
-      this.stageDuration = 6500; // 6.5s per stage
-      this.timerStart = null;
-      this.timerReqId = null;
+      // Mouse Wheel & Scroll Throttle State
+      this.isWheelThrottled = false;
+      this.wheelThrottleMs = 600;
+      this.canLeaveHero = false;
+      this.arrivedAtLastStepAt = 0;
 
       this.init();
     }
@@ -204,22 +196,20 @@
       this.handleResize();
       window.addEventListener('resize', () => this.handleResize(), { passive: true });
 
-      // Preload 50 CGI Frames
+      // Preload 150 CGI Frames
       this.preloadFrames();
 
-      // Render Stepper, Quick Apps Dock, and Step Content
+      // Render Stepper, Services List, and Initial Step Content
       this.renderStepper();
-      this.renderQuickAppsDock();
+      this.renderServicesList();
       this.renderStepContent(0, false);
+      this.updateScrollHint();
 
-      // Attach Control Button Listeners
-      this.initEventListeners();
+      // Attach Interactive Mouse Scroll, Touch, and Keyboard Navigation
+      this.initScrollNavigation();
 
       // Start Frame Render Loop
       this.renderLoop();
-
-      // Start Auto-Advance Timer
-      this.startPlaybackTimer();
     }
 
     handleResize() {
@@ -254,103 +244,153 @@
       }
     }
 
-    initEventListeners() {
-      if (this.btnPrev) {
-        this.btnPrev.addEventListener('click', () => {
-          this.prevStep();
-          this.resetPlaybackTimer();
-        });
-      }
+    initScrollNavigation() {
+      // 1. Mouse Wheel Scroll Driven Stage Transition
+      window.addEventListener('wheel', (e) => {
+        const isAtHero = window.scrollY <= 10;
 
-      if (this.btnNext) {
-        this.btnNext.addEventListener('click', () => {
-          this.nextStep();
-          this.resetPlaybackTimer();
-        });
-      }
+        // If user is scrolled down in body content, allow normal native scroll
+        if (!isAtHero) {
+          return;
+        }
 
-      if (this.btnTogglePlayback) {
-        this.btnTogglePlayback.addEventListener('click', () => {
-          this.togglePlayback();
-        });
-      }
+        if (e.deltaY > 10) {
+          // SCROLLING DOWN
+          if (this.currentStep < this.totalSteps - 1) {
+            // "Belum habis view diatas": JANGAN SCROLL KEBAWAH, WAJIB TAHAP BERIKUTNYA DAHULU!
+            e.preventDefault();
 
-      // Keyboard arrow keys (Left / Right)
+            if (!this.isWheelThrottled) {
+              this.isWheelThrottled = true;
+              this.nextStep();
+              setTimeout(() => {
+                this.isWheelThrottled = false;
+              }, this.wheelThrottleMs);
+            }
+          } else {
+            // Sudah di tahap terakhir (Tahap 04):
+            // Periksa apakah user sudah melihat Tahap 04 dan jeda kedatangan selesai
+            const timeSinceArrival = Date.now() - this.arrivedAtLastStepAt;
+
+            if (!this.canLeaveHero || timeSinceArrival < 700) {
+              // Masih dalam transisi/jeda Tahap 04, tahan scroll agar user bisa melihat tahap akhir
+              e.preventDefault();
+            } else {
+              // "Sudah habis view diatas": jalankan scroll halus ke bagian konten bawah!
+              const nextSection = document.getElementById('layanan-peradilan');
+              if (nextSection && !this.isWheelThrottled) {
+                this.isWheelThrottled = true;
+                e.preventDefault();
+                nextSection.scrollIntoView({ behavior: 'smooth' });
+                setTimeout(() => {
+                  this.isWheelThrottled = false;
+                }, 900);
+              }
+            }
+          }
+        } else if (e.deltaY < -10) {
+          // SCROLLING UP
+          if (this.currentStep > 0) {
+            e.preventDefault();
+            this.canLeaveHero = false;
+
+            if (!this.isWheelThrottled) {
+              this.isWheelThrottled = true;
+              this.prevStep();
+              setTimeout(() => {
+                this.isWheelThrottled = false;
+              }, this.wheelThrottleMs);
+            }
+          }
+        }
+      }, { passive: false });
+
+      // Guard: Pastikan window tidak scroll ke bawah saat alur tahap belum selesai
+      window.addEventListener('scroll', () => {
+        if (this.currentStep < this.totalSteps - 1 && window.scrollY > 0) {
+          window.scrollTo({ top: 0, behavior: 'instant' });
+        }
+      }, { passive: false });
+
+      // 2. Mobile & Tablet Touch Swipe Navigation
+      let touchStartY = 0;
+      let touchStartX = 0;
+
+      window.addEventListener('touchstart', (e) => {
+        if (e.touches && e.touches[0]) {
+          touchStartY = e.touches[0].clientY;
+          touchStartX = e.touches[0].clientX;
+        }
+      }, { passive: true });
+
+      window.addEventListener('touchmove', (e) => {
+        if (window.scrollY <= 10 && this.currentStep < this.totalSteps - 1) {
+          if (e.touches && e.touches[0]) {
+            const diffY = touchStartY - e.touches[0].clientY;
+            if (diffY > 0) {
+              // Mencegah scroll layar ke bawah jika alur belum selesai
+              e.preventDefault();
+            }
+          }
+        }
+      }, { passive: false });
+
+      window.addEventListener('touchend', (e) => {
+        if (window.scrollY > 15) return;
+        if (!e.changedTouches || !e.changedTouches[0]) return;
+        const diffY = touchStartY - e.changedTouches[0].clientY;
+        const diffX = touchStartX - e.changedTouches[0].clientX;
+
+        // Verify vertical gesture dominates
+        if (Math.abs(diffY) > 40 && Math.abs(diffY) > Math.abs(diffX)) {
+          if (diffY > 0) {
+            // Swipe Up -> Next Stage / Scroll to content if finished
+            if (this.currentStep < this.totalSteps - 1) {
+              this.nextStep();
+            } else if (this.canLeaveHero) {
+              const nextSection = document.getElementById('layanan-peradilan');
+              if (nextSection) nextSection.scrollIntoView({ behavior: 'smooth' });
+            }
+          } else if (diffY < 0 && this.currentStep > 0) {
+            // Swipe Down -> Prev Stage
+            this.prevStep();
+          }
+        }
+      }, { passive: true });
+
+      // 3. Keyboard Arrow Keys (Left / Right / Up / Down / PageUp / PageDown / Space)
       window.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowRight') {
-          this.nextStep();
-          this.resetPlaybackTimer();
-        } else if (e.key === 'ArrowLeft') {
-          this.prevStep();
-          this.resetPlaybackTimer();
-        } else if (e.key === ' ' && document.activeElement.tagName !== 'BUTTON') {
-          // Space toggles play/pause if not focused on button
-          e.preventDefault();
-          this.togglePlayback();
+        if (['TEXTAREA', 'INPUT'].includes(document.activeElement.tagName)) return;
+
+        if (window.scrollY <= 15) {
+          if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
+            if (this.currentStep < this.totalSteps - 1) {
+              e.preventDefault();
+              this.nextStep();
+            } else if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
+              const nextSection = document.getElementById('layanan-peradilan');
+              if (nextSection && this.canLeaveHero) {
+                e.preventDefault();
+                nextSection.scrollIntoView({ behavior: 'smooth' });
+              }
+            }
+          } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
+            if (this.currentStep > 0) {
+              e.preventDefault();
+              this.prevStep();
+            }
+          }
         }
       });
     }
 
-    togglePlayback() {
-      this.isPlaying = !this.isPlaying;
-      if (this.isPlaying) {
-        if (this.playbackIcon) this.playbackIcon.textContent = '⏸';
-        if (this.playbackLabel) this.playbackLabel.textContent = 'JEDA';
-        this.startPlaybackTimer();
-      } else {
-        if (this.playbackIcon) this.playbackIcon.textContent = '▶';
-        if (this.playbackLabel) this.playbackLabel.textContent = 'PUTAR';
-        this.stopPlaybackTimer();
-      }
-    }
-
-    startPlaybackTimer() {
-      this.timerStart = performance.now();
-      const tick = (now) => {
-        if (!this.isPlaying) return;
-
-        const elapsed = now - this.timerStart;
-        const pct = Math.min((elapsed / this.stageDuration) * 100, 100);
-
-        if (this.playbackTimerFill) {
-          this.playbackTimerFill.style.width = `${pct}%`;
-        }
-
-        if (elapsed >= this.stageDuration) {
-          this.nextStep();
-          this.timerStart = performance.now();
-        }
-
-        this.timerReqId = requestAnimationFrame(tick);
-      };
-
-      cancelAnimationFrame(this.timerReqId);
-      this.timerReqId = requestAnimationFrame(tick);
-    }
-
-    stopPlaybackTimer() {
-      cancelAnimationFrame(this.timerReqId);
-      if (this.playbackTimerFill) {
-        this.playbackTimerFill.style.width = '0%';
-      }
-    }
-
-    resetPlaybackTimer() {
-      if (this.isPlaying) {
-        this.timerStart = performance.now();
-        if (this.playbackTimerFill) {
-          this.playbackTimerFill.style.width = '0%';
-        }
-      }
-    }
-
     nextStep() {
-      const nextIdx = (this.currentStep + 1) % this.totalSteps;
+      const nextIdx = Math.min(this.currentStep + 1, this.totalSteps - 1);
       this.goToStep(nextIdx, 'next');
     }
 
     prevStep() {
-      const prevIdx = (this.currentStep - 1 + this.totalSteps) % this.totalSteps;
+      const prevIdx = Math.max(this.currentStep - 1, 0);
       this.goToStep(prevIdx, 'prev');
     }
 
@@ -364,12 +404,27 @@
       // Update frame target
       this.targetFrame = step.frameTarget;
 
+      // Jeda jika mencapai tahap akhir sebelum bisa scroll ke bawah
+      if (newStepIdx === this.totalSteps - 1) {
+        this.arrivedAtLastStepAt = Date.now();
+        this.canLeaveHero = false;
+        setTimeout(() => {
+          if (this.currentStep === this.totalSteps - 1) {
+            this.canLeaveHero = true;
+            this.updateScrollHint();
+          }
+        }, 700);
+      } else {
+        this.canLeaveHero = false;
+      }
+
       // Play gavel sound effect if entering stage 3 (Palu Sidang)
       if (step.id === 'palu' || step.soundEffect === 'gavel') {
         this.gavelSound.playStrike();
       }
 
       this.renderStepper();
+      this.updateScrollHint();
 
       // Trigger Text Zoom-Out, Swap Content, then Text Zoom-In
       if (this.storyCard) {
@@ -392,6 +447,23 @@
       }
     }
 
+    updateScrollHint() {
+      const hintText = document.querySelector('#heroScrollHint .scroll-hint-text');
+      const hintEl = document.getElementById('heroScrollHint');
+      if (!hintText || !hintEl) return;
+
+      if (this.currentStep < this.totalSteps - 1) {
+        const nextStep = this.storyline[this.currentStep + 1];
+        hintText.textContent = nextStep 
+          ? `Gulir mouse untuk Tahap ${nextStep.stepNumber}: ${nextStep.stepTitle}`
+          : 'Gulir mouse untuk tahap berikutnya';
+        hintEl.classList.remove('is-finished');
+      } else {
+        hintText.innerHTML = `Tahap selesai — <strong>gulir ke bawah untuk layanan peradilan ↓</strong>`;
+        hintEl.classList.add('is-finished');
+      }
+    }
+
     renderStepper() {
       if (!this.stepperEl) return;
       this.stepperEl.innerHTML = '';
@@ -409,7 +481,6 @@
 
         pill.addEventListener('click', () => {
           this.goToStep(idx, idx > this.currentStep ? 'next' : 'prev');
-          this.resetPlaybackTimer();
         });
 
         this.stepperEl.appendChild(pill);
@@ -423,25 +494,36 @@
       });
     }
 
-    renderQuickAppsDock() {
-      if (!this.quickAppsListEl || !this.digitalServices) return;
-      this.quickAppsListEl.innerHTML = '';
+    renderServicesList() {
+      if (!this.servicesListEl || !this.digitalServices) return;
+      this.servicesListEl.innerHTML = '';
 
-      // Display top 5 primary services in quick dock
-      const quickItems = this.digitalServices.slice(0, 5);
+      // Tampilkan 6 layanan utama resmi hasil scraping dalam format daftar list
+      const listItems = this.digitalServices.slice(0, 6);
 
-      quickItems.forEach((item) => {
+      listItems.forEach((item) => {
         const a = document.createElement('a');
         a.href = item.url;
         a.target = '_blank';
         a.rel = 'noopener noreferrer';
-        a.className = 'quick-app-pill';
-        a.setAttribute('aria-label', `Buka layanan ${item.title}`);
+        a.className = 'service-list-item';
+        a.setAttribute('aria-label', `Buka layanan ${item.title}: ${item.desc}`);
         a.innerHTML = `
-          ${getServiceIconSvg(item.iconType)}
-          <span>${item.title}</span>
+          <div class="service-item-icon" aria-hidden="true">
+            ${getServiceIconSvg(item.iconType)}
+          </div>
+          <div class="service-item-content">
+            <div class="service-item-top">
+              <span class="service-item-name">${item.title}</span>
+              <span class="service-item-badge">${item.badge}</span>
+            </div>
+            <p class="service-item-sub">${item.desc}</p>
+          </div>
+          <div class="service-item-arrow" aria-hidden="true">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
+          </div>
         `;
-        this.quickAppsListEl.appendChild(a);
+        this.servicesListEl.appendChild(a);
       });
     }
 

@@ -16,7 +16,7 @@
   <link rel="preload" as="image" href="assets/media/hero_poster.jpg">
 
   <!-- Hero Section Styles -->
-  <link rel="stylesheet" href="css/hero.css?v=2.1">
+  <link rel="stylesheet" href="css/hero.css?v=3.1">
 </head>
 <body>
 
@@ -141,25 +141,18 @@
     <div class="hero-container">
       <div class="hero-content-col" id="heroContentCol">
         
-        <!-- Minimalist Cinematic Controller & Stepper (Tanpa Gulir Mouse, Bisa Di-Pause & Bolak-Balik) -->
+        <!-- Minimalist Stepper & Mouse Scroll Indicator (Perpindahan Alur via Gulir Mouse) -->
         <div class="hero-controller-bar anim-init anim-eyebrow" id="heroControllerBar">
           <div class="hero-stepper" id="heroStepper" aria-label="Alur Penjelajahan Sinematik">
             <!-- Rendered dynamically: step pills -->
           </div>
 
-          <!-- Minimalist Playback & Step Controls -->
-          <div class="hero-playback-controls">
-            <button type="button" class="btn-ctrl-step" id="btnPrevStep" aria-label="Tahap Sebelumnya">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
-            </button>
-            <button type="button" class="btn-ctrl-playback" id="btnTogglePlayback" aria-label="Jeda atau Lanjutkan Putar Otomatis">
-              <span class="playback-icon" id="playbackIcon">⏸</span>
-              <span class="playback-label" id="playbackLabel">JEDA</span>
-              <div class="playback-timer-bar"><div class="playback-timer-fill" id="playbackTimerFill"></div></div>
-            </button>
-            <button type="button" class="btn-ctrl-step" id="btnNextStep" aria-label="Tahap Selanjutnya">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </button>
+          <!-- Petunjuk Interaktif Gulir Mouse -->
+          <div class="hero-scroll-hint" id="heroScrollHint" aria-label="Petunjuk Navigasi Gulir Mouse">
+            <span class="scroll-mouse-icon" aria-hidden="true">
+              <span class="scroll-mouse-wheel"></span>
+            </span>
+            <span class="scroll-hint-text">Gulir mouse untuk jelajahi alur</span>
           </div>
         </div>
 
@@ -207,15 +200,30 @@
           </div>
         </div>
 
-        <!-- Quick Digital Services App Dock (Scraped from s.id/layananinformasipnpagaralam) -->
-        <div class="hero-quick-apps" id="heroQuickApps" aria-label="Akses Cepat Layanan Digital">
-          <span class="quick-apps-label">AKSES CEPAT:</span>
-          <div class="quick-apps-list" id="heroQuickAppsList">
-            <!-- Populated dynamically: Pidana, Perdata, Hukum, e-Court, e-Berpadu, Jadwal Sidang, etc. -->
+        <!-- Panel Daftar List Shortcut Pelayanan Digital (Hasil Scraping s.id & pn-pagaralam.go.id) -->
+        <div class="hero-services-panel" id="heroServicesPanel" aria-label="Daftar Shortcut Pelayanan Digital">
+          <div class="services-panel-header">
+            <div class="services-panel-title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--color-gold-primary);" aria-hidden="true">
+                <line x1="8" y1="6" x2="21" y2="6"></line>
+                <line x1="8" y1="12" x2="21" y2="12"></line>
+                <line x1="8" y1="18" x2="21" y2="18"></line>
+                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+              </svg>
+              <span>DAFTAR SHORTCUT PELAYANAN:</span>
+            </div>
+            <button type="button" class="services-panel-modal-btn btn-trigger-modal" aria-label="Buka Seluruh 10 Layanan Digital">
+              <span>Semua Layanan (10)</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
           </div>
-          <button type="button" class="quick-app-more btn-trigger-modal" aria-label="Buka Semua 10 Layanan Digital">
-            <span>+10 Layanan</span>
-          </button>
+
+          <!-- Structured List of Shortcut Services -->
+          <div class="hero-services-list" id="heroServicesList">
+            <!-- Populated dynamically via JS: Pidana, Perdata, Hukum, e-Court, e-Berpadu, Jadwal Sidang -->
+          </div>
         </div>
 
         <!-- Institutional Status Indicator Strip -->
@@ -406,7 +414,7 @@
   </footer>
 
   <!-- Core Scripts -->
-  <script src="js/hero-config.js?v=2.1"></script>
-  <script src="js/hero.js?v=2.1"></script>
+  <script src="js/hero-config.js?v=3.1"></script>
+  <script src="js/hero.js?v=3.1"></script>
 </body>
 </html>
